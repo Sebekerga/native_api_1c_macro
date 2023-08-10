@@ -2,6 +2,9 @@
 name = "native_api_1c_macro"
 version = "0.9.0"
 edition = "2021"
+repository = "https://github.com/Sebekerga/native_api_1c_macro"
+license = "MIT"
+description = "Macro library for Native API 1C"
 
 [lib]
 proc-macro = true
