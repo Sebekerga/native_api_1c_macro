@@ -44,6 +44,7 @@ struct PropDesc {
     ty: ParamType,
 }
 
+#[derive(Clone)]
 enum ParamType {
     SelfType,
     SelfTypeMut,
@@ -219,6 +220,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             func_desc.params.push(param_type);
         }
         func_desc.return_value = parse_func_return(&fn_desc.output)?;
+        funcs.push(func_desc);
     }
 
 
@@ -243,13 +245,13 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         find_prop_body = quote! {
             #find_prop_body
-            if utf16_lit::utf16_null!(#name_literal) == name { return Some(#prop_index) };
-            if utf16_lit::utf16_null!(#name_ru_literal) == name { return Some(#prop_index) };
+            if native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
+            if native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
         };
         get_prop_name_body = quote! {
             #get_prop_name_body
-            if num == #prop_index && alias == 0 { return Some(utf16_lit::utf16_null!(#name_ru_literal).into()) };
-            if num == #prop_index { return Some(utf16_lit::utf16_null!(#name_literal).into()) };
+            if num == #prop_index && alias == 0 { return Some(native_api_1c_core::ffi::utils::os_string_nil(#name_literal).into()) };
+            if num == #prop_index { return Some(native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal).into()) };
         };
         is_prop_readable_body = quote! {
             #is_prop_readable_body
@@ -302,30 +304,49 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         find_func_body = quote! {
             #find_func_body
-            if utf16_lit::utf16_null!(#name_literal) == name { return Some(#func_index) };
-            if utf16_lit::utf16_null!(#name_ru_literal) == name { return Some(#func_index) };
+            if native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#func_index) };
+            if native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal) == name { return Some(#func_index) };
         };
         get_func_name_body = quote! {
             #get_func_name_body
-            if num == #func_index && alias == 0 { return Some(utf16_lit::utf16_null!(#name_ru_literal).into()) };
-            if num == #func_index { return Some(utf16_lit::utf16_null!(#name_literal).into()) };
+            if num == #func_index && alias == 0 { return Some(native_api_1c_core::ffi::utils::os_string_nil(#name_literal).into()) };
+            if num == #func_index { return Some(native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal).into()) };
         };
         has_ret_val_body = quote! {
             #has_ret_val_body
-            if num == #func_index { return #has_ret_val };
+            if method_num == #func_index { return #has_ret_val };
         };
         get_n_params_body = quote! {
             #get_n_params_body
             if num == #func_index { return #number_of_params };
         };
+
+        let call_proc = func_call_tkn(func, false)?;
+        call_as_proc_body = quote! {
+            #call_as_proc_body
+            if method_num == #func_index {
+                #call_proc
+                return true;
+            };
+        };
+
+        if func.return_value.is_some() {
+            let call_func = func_call_tkn(func, true)?;
+            call_as_func_body = quote! {
+                #call_as_func_body
+                if method_num == #func_index {
+                    #call_func
+                    return true;
+                };
+            };
+        }
     }
 
-    // panic!("set_prop_val_body: {}", set_prop_val_body.to_string());
-    // panic!("find_prop_body: {}", find_prop_body.to_string());
+    // panic!("call_as_func_body: {}", call_as_func_body.to_string());
 
     let result = quote! {
-        impl native_api_1c::interface::AddInWrapper for #struct_ident {
-            fn init(&mut self, interface: &'static native_api_1c::ffi::connection::Connection) -> bool {
+        impl native_api_1c_core::interface::AddInWrapper for #struct_ident {
+            fn init(&mut self, interface: &'static native_api_1c_core::ffi::connection::Connection) -> bool {
                 self.connection = std::sync::Arc::new(Some(interface));
                 true
             }
@@ -333,13 +354,10 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn get_info(&self) -> u16 {
                 2000
             }
-
             fn done(&mut self) {}
-
             fn register_extension_as(&mut self) -> &[u16] {
                 &utf16_lit::utf16_null!(#add_in_name_literal)
             }
-
             fn get_n_props(&self) -> usize {
                 #number_of_props
             }
@@ -351,12 +369,12 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 #get_prop_name_body
                 None
             }
-            fn get_prop_val(&self, num: usize, val: native_api_1c::ffi::types::ReturnValue) -> bool {
+            fn get_prop_val(&self, num: usize, val: native_api_1c_core::ffi::types::ReturnValue) -> bool {
                 #get_prop_val_body
                 false
             }
-            fn set_prop_val(&mut self, num: usize, val: &native_api_1c::ffi::types::ParamValue) -> bool {
-                // #set_prop_val_body
+            fn set_prop_val(&mut self, num: usize, val: &native_api_1c_core::ffi::types::ParamValue) -> bool {
+                #set_prop_val_body
                 false     
             }
             fn is_prop_readable(&self, num: usize) -> bool {
@@ -386,7 +404,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 &self,
                 method_num: usize,
                 param_num: usize,
-                value: native_api_1c::ffi::types::ReturnValue,
+                value: native_api_1c_core::ffi::types::ReturnValue,
             ) -> bool {
                 false
             }
@@ -397,7 +415,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_proc(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::ffi::types::ParamValue],
+                params: &[native_api_1c_core::ffi::types::ParamValue],
             ) -> bool {
                 #call_as_proc_body
                 false
@@ -405,8 +423,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_func(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::ffi::types::ParamValue],
-                val: native_api_1c::ffi::types::ReturnValue,
+                params: &[native_api_1c_core::ffi::types::ParamValue],
+                val: native_api_1c_core::ffi::types::ReturnValue,
             ) -> bool {
                 #call_as_func_body
                 false
@@ -426,12 +444,12 @@ fn build_extern_functions(input: &DeriveInput) -> Result<proc_macro2::TokenStrea
         match *name as u8 {
             b'1' => {
                 let add_in_1 = #struct_ident::new();
-                native_api_1c::ffi::create_component(component, add_in_1)
+                native_api_1c_core::ffi::create_component(component, add_in_1)
             },
             _ => 0, 
         }   
     };
-    let get_class_names_body = quote! { utf16_lit::utf16_null!("1").as_ptr() };
+    let get_class_names_body = quote! { native_api_1c_core::ffi::utils::os_string_nil("1").as_ptr() };
 
     let result = quote! {
         pub static mut PLATFORM_CAPABILITIES: std::sync::atomic::AtomicI32 =
@@ -439,14 +457,14 @@ fn build_extern_functions(input: &DeriveInput) -> Result<proc_macro2::TokenStrea
 
         #[allow(non_snake_case)]
         #[no_mangle]
-        pub extern "C" fn GetAttachType() -> native_api_1c::ffi::AttachType {
-            native_api_1c::ffi::AttachType::Any
+        pub extern "C" fn GetAttachType() -> native_api_1c_core::ffi::AttachType {
+            native_api_1c_core::ffi::AttachType::Any
         }
 
         #[allow(non_snake_case)]
         #[no_mangle]
         pub unsafe extern "C" fn DestroyObject(component: *mut *mut std::ffi::c_void) -> std::ffi::c_long {
-            native_api_1c::ffi::destroy_component(component)
+            native_api_1c_core::ffi::destroy_component(component)
         }
 
         #[allow(non_snake_case)]
@@ -546,17 +564,91 @@ fn param_ty_to_ffi_return(param_type: &ParamType, param_path: proc_macro2::Token
         ParamType::Bool => Ok(quote! { val.set_bool(self.#param_path) }),
         ParamType::I32 => Ok(quote! { val.set_i32(self.#param_path) }),
         ParamType::F64 => Ok(quote! { val.set_f64(self.#param_path) }),
-        ParamType::String => Ok(quote! { val.set_str(&self.#param_path) }),
+        ParamType::String => Ok(quote! { val.set_str(&native_api_1c_core::ffi::utils::os_string_nil(&self.#param_path)) }),
         _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64, or String", param_path.__span()),
     }
 }
 
 fn param_ty_to_ffi_set(param_type: &ParamType, param_path: proc_macro2::TokenStream) -> Result<proc_macro2::TokenStream, TokenStream> {
     match param_type {
-        ParamType::Bool => Ok(quote! { native_api_1c::ffi::types::ParamValue::Bool(inner_value) => self.#param_path = inner_value, }),
-        ParamType::I32 => Ok(quote! { native_api_1c::ffi::types::ParamValue::I32(inner_value) => self.#param_path = inner_value, }),
-        ParamType::F64 => Ok(quote! { native_api_1c::ffi::types::ParamValue::F64(inner_value) => self.#param_path = inner_value, }),
-        ParamType::String => Ok(quote! { native_api_1c::ffi::types::ParamValue::String(inner_value) => self.#param_path = inner_value, }),
+        ParamType::Bool => Ok(quote! { native_api_1c_core::ffi::types::ParamValue::Bool(inner_value) => self.#param_path = inner_value.clone(), }),
+        ParamType::I32 => Ok(quote! { native_api_1c_core::ffi::types::ParamValue::I32(inner_value) => self.#param_path = inner_value.clone(), }),
+        ParamType::F64 => Ok(quote! { native_api_1c_core::ffi::types::ParamValue::F64(inner_value) => self.#param_path = inner_value.clone(), }),
+        ParamType::String => Ok(quote! { native_api_1c_core::ffi::types::ParamValue::String(inner_value) => self.#param_path = inner_value.clone(), }),
         _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64, or String", param_path.__span()),
+    }
+}
+
+fn func_call_tkn(func: &FuncDesc, return_value: bool) -> Result<proc_macro2::TokenStream, TokenStream> {
+    let func_ident = &func.ident;
+    let mut param_checkers = quote! {};
+    let mut func_call = quote! {};
+    let mut counter = 0;
+    for param in &func.params {
+        if matches!(param, ParamType::SelfType | ParamType::SelfTypeMut) {
+            continue;
+        }
+
+        let param_ident = Ident::new(&format!("param_{}", counter+1), Span::call_site());
+        param_checkers = quote! {
+            #param_checkers
+            let Some(param_data) = params.get(#counter as usize) else { return false; };
+        };
+        match param {
+            ParamType::Bool => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c_core::ffi::types::ParamValue::Bool(#param_ident) = param_data
+                };
+            }
+            ParamType::I32 => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c_core::ffi::types::ParamValue::I32(#param_ident) = param_data
+                };
+            }
+            ParamType::F64 => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c_core::ffi::types::ParamValue::F64(#param_ident) = param_data
+                };
+            }
+            ParamType::String => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c_core::ffi::types::ParamValue::String(#param_ident) = param_data
+                };
+            }
+            _ => return tkn_err!("AddIn functions arguments cannot be `Self`", param_ident.__span()),
+        }
+        param_checkers = quote! {
+            #param_checkers
+            else { return false; };
+        };
+        func_call = quote! {
+            #func_call
+            #param_ident.clone(),
+        };
+        counter += 1;
+    };
+
+    if return_value {
+        let value_setter = match &func.return_value.clone().unwrap() {
+            ParamType::Bool => quote! { val.set_bool(result); },
+            ParamType::I32 => quote! { val.set_i32(result); },
+            ParamType::F64 => quote! { val.set_f64(result); },
+            ParamType::String => quote! { val.set_str(&native_api_1c_core::ffi::utils::os_string_nil(&result)); },
+            _ => return tkn_err!("AddIn functions must return (), bool, i32, f64, or String", func_ident.__span()),
+        };
+        Ok(quote! {
+            #param_checkers
+            let result = self.#func_ident(#func_call);
+            #value_setter
+        })
+    } else {
+        Ok(quote! {
+            #param_checkers
+            self.#func_ident(#func_call);
+        })
     }
 }
