@@ -11,9 +11,6 @@ pub struct PropDesc {
 
 #[derive(Clone)]
 pub enum ParamType {
-    SelfType,
-    #[deprecated(note = "Use SelfType instead")]
-    SelfTypeMut,
     Bool(Option<Expr>),
     I32(Option<Expr>),
     F64(Option<Expr>),

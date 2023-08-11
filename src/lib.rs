@@ -117,14 +117,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         let name_ru_literal = str_literal_token(&func.name_ru, struct_ident)?;
         let has_ret_val = func.return_value.0.is_some();
         let func_index = functions.iter().position(|p| p.name == func.name).unwrap();
-        let number_of_params = func
-            .params
-            .iter()
-            .filter(|p| match p {
-                ParamType::SelfType | ParamType::SelfTypeMut => false,
-                _ => true,
-            })
-            .count();
+        let number_of_params = func.params.iter().count();
 
         find_func_body = quote! {
             #find_func_body
