@@ -1,26 +1,18 @@
-use functions::parse_funcs;
-use proc_macro::{LexError, TokenStream};
-use proc_macro2::Span;
+use functions::{func_call_tkn, parse_functions};
+use proc_macro::TokenStream;
 use props::parse_props;
-use quote::{quote, spanned::Spanned, ToTokens};
-use syn::{
-    parse_macro_input, punctuated::Punctuated, BareFnArg, DeriveInput, Expr, GenericArgument,
-    Ident, Token, Type,
-};
-use types::{FuncDesc, ParamType, PropDesc};
-use utils::{
-    func_call_tkn, macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token,
-};
+use quote::quote;
+use syn::{parse_macro_input, DeriveInput};
+use types::ParamType;
+use utils::{macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token};
 
+mod constants;
 mod functions;
 mod props;
 mod types;
 mod utils;
 
-#[proc_macro_derive(
-    AddIn,
-    attributes(add_in_prop, add_in_func, add_in_con, param, returns)
-)]
+#[proc_macro_derive(AddIn, attributes(add_in_prop, add_in_func, add_in_con, arg, returns))]
 pub fn derive(input: TokenStream) -> TokenStream {
     let derive_input = parse_macro_input!(input as DeriveInput);
     match derive_result(&derive_input) {
@@ -47,11 +39,11 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
     };
     let add_in_name_literal = str_literal_token(&struct_ident.to_string(), struct_ident)?;
 
-    let mut props = parse_props(struct_data)?;
-    let mut funcs = parse_funcs(struct_data)?;
+    let props = parse_props(struct_data)?;
+    let functions = parse_functions(struct_data)?;
 
     let number_of_props = props.len();
-    let number_of_func = funcs.len();
+    let number_of_func = functions.len();
 
     let mut find_prop_body = quote! {};
     let mut get_prop_name_body = quote! {};
@@ -120,11 +112,11 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
     let mut call_as_proc_body = quote! {};
     let mut call_as_func_body = quote! {};
 
-    for func in &funcs {
+    for func in &functions {
         let name_literal = str_literal_token(&func.name, struct_ident)?;
         let name_ru_literal = str_literal_token(&func.name_ru, struct_ident)?;
-        let has_ret_val = func.return_value.is_some();
-        let func_index = funcs.iter().position(|p| p.name == func.name).unwrap();
+        let has_ret_val = func.return_value.0.is_some();
+        let func_index = functions.iter().position(|p| p.name == func.name).unwrap();
         let number_of_params = func
             .params
             .iter()
@@ -162,7 +154,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             };
         };
 
-        if func.return_value.is_some() {
+        if func.return_value.0.is_some() {
             let call_func = func_call_tkn(func, true)?;
             call_as_func_body = quote! {
                 #call_as_func_body

@@ -1,4 +1,4 @@
-use syn::Ident;
+use syn::{Expr, Ident};
 
 pub struct PropDesc {
     pub ident: Ident,
@@ -12,11 +12,12 @@ pub struct PropDesc {
 #[derive(Clone)]
 pub enum ParamType {
     SelfType,
+    #[deprecated(note = "Use SelfType instead")]
     SelfTypeMut,
-    Bool(bool),
-    I32(bool),
-    F64(bool),
-    String(bool),
+    Bool(Option<Expr>),
+    I32(Option<Expr>),
+    F64(Option<Expr>),
+    String(Option<Expr>),
 }
 
 pub struct FuncDesc {
@@ -24,5 +25,5 @@ pub struct FuncDesc {
     pub name: String,
     pub name_ru: String,
     pub params: Vec<ParamType>,
-    pub return_value: Option<ParamType>,
+    pub return_value: (Option<ParamType>, bool),
 }

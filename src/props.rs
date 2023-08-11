@@ -5,7 +5,7 @@ use syn::{
     parse_macro_input, punctuated::Punctuated, BareFnArg, DeriveInput, Expr, GenericArgument,
     Ident, Token, Type, DataStruct,
 };
-use crate::{types::PropDesc, utils::{macros::{tkn_err, tkn_err_inner}, convert_ty_to_param_type}};
+use crate::{types::PropDesc, utils::{macros::{tkn_err, tkn_err_inner}, convert_ty_to_param_type}, constants::{NAME_ATTR, NAME_RU_ATTR}};
 
 pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStream> {
 
@@ -22,9 +22,6 @@ pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStrea
         if prop.attrs.len() > 1 {
             return tkn_err!("AddIn fields can have 1 attribute at most", prop.__span());
         }
-        let syn::Visibility::Public(_) = prop.vis else {
-            return tkn_err!("AddIn props must be public", prop.ident.__span());
-        };
         let Some(prop_ident) = prop.ident.clone() else {
             return tkn_err!("AddIn props must have a name", prop.__span());
         };
@@ -45,7 +42,7 @@ pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStrea
             });
         let Some(prop_name) = args
             .clone()
-            .find(|(name, _, _)| name == "name") else {
+            .find(|(name, _, _)| name == NAME_ATTR) else {
                 return tkn_err!("AddIn prop must have a `name` argument: name = \"MyPropName\"", attr.__span());
             };
         let Some(prop_name) = prop_name.1 else {
@@ -54,7 +51,7 @@ pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStrea
 
         let Some(prop_name_ru) = args
             .clone()
-            .find(|(name, _, _)| name == "name_ru") else {
+            .find(|(name, _, _)| name == NAME_RU_ATTR) else {
                 return tkn_err!("AddIn prop must have a `name_ru` argument: name_ru = \"МоеСвойство\"", attr.__span());
             };
         let Some(prop_name_ru) = prop_name_ru.1 else {
