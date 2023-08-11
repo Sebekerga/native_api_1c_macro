@@ -3,7 +3,6 @@ use proc_macro::TokenStream;
 use props::parse_props;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
-use types::ParamType;
 use utils::{macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token};
 
 mod constants;

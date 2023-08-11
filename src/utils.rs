@@ -1,9 +1,9 @@
 use proc_macro::{LexError, TokenStream};
 use proc_macro2::Span;
-use quote::{quote, spanned::Spanned, ToTokens};
-use syn::{BareFnArg, GenericArgument, Ident, Type};
+use quote::quote;
+use syn::{Ident, Type};
 
-use crate::types::{FuncDesc, ParamType};
+use crate::types::ParamType;
 
 use self::macros::tkn_err;
 
@@ -65,12 +65,6 @@ pub fn param_ty_to_ffi_return(
         ParamType::String(_) => Ok(
             quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&self.#param_path.into())) },
         ),
-        _ => {
-            return tkn_err!(
-                "AddIn functions arguments must be bool, i32, f64, or String",
-                param_path.__span()
-            )
-        }
     }
 }
 
@@ -92,12 +86,6 @@ pub fn param_ty_to_ffi_set(
             native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(inner_value) => self.#param_path
                 = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value),
         }),
-        _ => {
-            return tkn_err!(
-                "AddIn functions arguments must be bool, i32, f64, or String",
-                param_path.__span()
-            )
-        }
     }
 }
 

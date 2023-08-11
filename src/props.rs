@@ -1,11 +1,9 @@
-use proc_macro::{LexError, TokenStream};
-use proc_macro2::Span;
-use quote::{quote, spanned::Spanned, ToTokens};
+use proc_macro::TokenStream;
+use quote::{spanned::Spanned, ToTokens};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, BareFnArg, DeriveInput, Expr, GenericArgument,
-    Ident, Token, Type, DataStruct,
+    punctuated::Punctuated, Expr, Token, DataStruct,
 };
-use crate::{types::PropDesc, utils::{macros::{tkn_err, tkn_err_inner}, convert_ty_to_param_type}, constants::{NAME_ATTR, NAME_RU_ATTR}};
+use crate::{types::PropDesc, utils::{macros::{tkn_err, tkn_err_inner}, convert_ty_to_param_type}, constants::{NAME_ATTR, NAME_RU_ATTR, READABLE_ATTR, WRITABLE_ATTR}};
 
 pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStream> {
 
@@ -60,12 +58,12 @@ pub fn parse_props(struct_data: &DataStruct) -> Result<Vec<PropDesc>, TokenStrea
 
         let readable = args
             .clone()
-            .find(|(name, _, _)| name == "readable")
+            .find(|(name, _, _)| name == READABLE_ATTR)
             .is_some();
 
         let writable = args
             .clone()
-            .find(|(name, _, _)| name == "writable")
+            .find(|(name, _, _)| name == WRITABLE_ATTR)
             .is_some();
 
         if !readable && !writable {

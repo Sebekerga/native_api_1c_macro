@@ -51,7 +51,7 @@ pub fn parse_functions(struct_data: &DataStruct) -> Result<Vec<FuncDesc>, TokenS
 
         // check function definition
         let Type::BareFn(field_ty) = &field.ty else {
-            return tkn_err!("AddIn functions must be bare functions", field.ident.__span());
+            return tkn_err!("AddIn functions must have bare `fn` type", field.ident.__span());
         };
         if matches!(field_ty.output, ReturnType::Default) && (func_desc.return_value.0.is_some() || func_desc.return_value.1) {
             return tkn_err!("AddIn functions must have a return type if `returns` attribute is specified", field.ident.__span());
@@ -226,12 +226,6 @@ pub fn func_call_tkn(
                     let #param_ident = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(#param_ident);
                 };
             }
-            _ => {
-                return tkn_err!(
-                    "AddIn functions arguments cannot be `Self`",
-                    param_ident.__span()
-                )
-            }
         }
         func_call = quote! {
             #func_call
@@ -259,12 +253,6 @@ pub fn func_call_tkn(
             ParamType::F64(_) => quote! { val.set_f64(call_result.into()); },
             ParamType::String(_) => {
                 quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&call_result.into())); }
-            }
-            _ => {
-                return tkn_err!(
-                    "AddIn functions must return (), bool, i32, f64, or String",
-                    func_ident.__span()
-                )
             }
         };
         func_call = quote! {
