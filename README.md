@@ -13,7 +13,7 @@ pub struct MyAddIn {
     #[add_in_prop(name = "ProtectedProp", name_ru = "ЗащищенноеСвойство", readable)]
     pub protected_prop: i32,
     #[add_in_func(name = "MyFunction", name_ru = "МояФункция")]
-    #[arg(Int)]
+    #[arg(Int, default = 12)]
     #[returns(Int, result)]
     pub my_function: fn(&Self, i32) -> Result<i32, ()>,
 
@@ -34,9 +34,5 @@ impl MyAddIn {
     fn my_function(&self, arg: i32) -> Result<i32, ()> {
         Ok(self.protected_prop + self.some_prop + arg + self.private_field)
     }
-}
-
-fn main() {
-    let _add_in = MyAddIn::new();
 }
 ```
