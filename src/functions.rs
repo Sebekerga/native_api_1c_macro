@@ -99,7 +99,7 @@ fn parse_add_in_func_attr(attr: &Attribute) -> Result<(String, String), TokenStr
     Ok((prop_name, prop_name_ru))
 }
 
-fn parse_arg_attr(attr: &Attribute) -> Result<ParamType, TokenStream> {
+fn parse_arg_attr(attr: &Attribute) -> Result<(ParamType, Option<Expr>), TokenStream> {
     let exprs: Punctuated<Expr, Token![,]> = attr
         .parse_args_with(Punctuated::parse_terminated)
         .map_err::<TokenStream, _>(|e| tkn_err_inner!(e.to_string(), attr.bracket_token.span.__span()))?; 
@@ -124,16 +124,16 @@ fn parse_arg_attr(attr: &Attribute) -> Result<ParamType, TokenStream> {
             return None;
         };        
         
-        Some(expr.to_owned())
+        Some((&*assign.right).to_owned())
     });
     
-    Ok(match arg_ty_str.as_str() {
-        BOOL_TYPE => ParamType::Bool(default),
-        I32_TYPE => ParamType::I32(default),
-        F64_TYPE => ParamType::F64(default),
-        STRING_TYPE => ParamType::String(default),
+    Ok((match arg_ty_str.as_str() {
+        BOOL_TYPE => ParamType::Bool,
+        I32_TYPE => ParamType::I32,
+        F64_TYPE => ParamType::F64,
+        STRING_TYPE => ParamType::String,
         _ => unreachable!(),
-    })
+    }, default))
 }
 
 fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), TokenStream> {
@@ -152,10 +152,10 @@ fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), Tok
         return tkn_err!("AddIn function attribute `returns` must have a type specified: use `#[returns(None, ...)]` if doesn't return anything", attr.bracket_token.span.__span());
     };
     let arg_ty = match arg_ty_str.to_token_stream().to_string().as_str() {
-        BOOL_TYPE => Some(ParamType::Bool(None)),
-        I32_TYPE => Some(ParamType::I32(None)),
-        F64_TYPE => Some(ParamType::F64(None)),
-        STRING_TYPE => Some(ParamType::String(None)),
+        BOOL_TYPE => Some(ParamType::Bool),
+        I32_TYPE => Some(ParamType::I32),
+        F64_TYPE => Some(ParamType::F64),
+        STRING_TYPE => Some(ParamType::String),
         UNTYPED_TYPE => None,
         _ => unreachable!(),
     };
@@ -170,8 +170,6 @@ fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), Tok
 
     Ok((arg_ty, result))        
 }
-
-
 
 pub fn func_call_tkn(
     func: &FuncDesc,
@@ -188,8 +186,8 @@ pub fn func_call_tkn(
             #param_checkers
             let Some(param_data) = params.get(#counter as usize) else { return false; };
         };
-        match param {
-            ParamType::Bool(_) => {
+        match param.0 {
+            ParamType::Bool => {
                 param_checkers = quote! {
                     #param_checkers
                     let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(#param_ident) 
@@ -198,7 +196,7 @@ pub fn func_call_tkn(
                     };
                 };
             }
-            ParamType::I32(_) => {
+            ParamType::I32 => {
                 param_checkers = quote! {
                     #param_checkers
                     let native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(#param_ident) 
@@ -207,7 +205,7 @@ pub fn func_call_tkn(
                     };
                 };
             }
-            ParamType::F64(_) => {
+            ParamType::F64 => {
                 param_checkers = quote! {
                     #param_checkers
                     let native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(#param_ident) 
@@ -216,7 +214,7 @@ pub fn func_call_tkn(
                         };
                 };
             }
-            ParamType::String(_) => {
+            ParamType::String => {
                 param_checkers = quote! {
                     #param_checkers
                     let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(#param_ident) 
@@ -248,10 +246,10 @@ pub fn func_call_tkn(
 
     if return_value {
         let value_setter = match &func.return_value.clone().0.unwrap() {
-            ParamType::Bool(_) => quote! { val.set_bool(call_result.into()); },
-            ParamType::I32(_) => quote! { val.set_i32(call_result.into()); },
-            ParamType::F64(_) => quote! { val.set_f64(call_result.into()); },
-            ParamType::String(_) => {
+            ParamType::Bool => quote! { val.set_bool(call_result.into()); },
+            ParamType::I32 => quote! { val.set_i32(call_result.into()); },
+            ParamType::F64 => quote! { val.set_f64(call_result.into()); },
+            ParamType::String => {
                 quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&call_result).as_str())); }
             }
         };

@@ -11,16 +11,16 @@ pub struct PropDesc {
 
 #[derive(Clone)]
 pub enum ParamType {
-    Bool(Option<Expr>),
-    I32(Option<Expr>),
-    F64(Option<Expr>),
-    String(Option<Expr>),
+    Bool,
+    I32,
+    F64,
+    String,
 }
 
 pub struct FuncDesc {
     pub ident: Ident,
     pub name: String,
     pub name_ru: String,
-    pub params: Vec<ParamType>,
+    pub params: Vec<(ParamType, Option<Expr>)>,
     pub return_value: (Option<ParamType>, bool),
 }

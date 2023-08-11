@@ -1,7 +1,7 @@
 use functions::{func_call_tkn, parse_functions};
 use proc_macro::TokenStream;
 use props::parse_props;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{parse_macro_input, DeriveInput};
 use utils::{macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token};
 
@@ -79,7 +79,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         };
 
         if readable {
-            let ffi_set_tkn = param_ty_to_ffi_return(&prop.ty, quote! { #prop_ident})?;
+            let ffi_set_tkn =
+                param_ty_to_ffi_return(&prop.ty, quote! { val }, quote! {self.#prop_ident})?;
             get_prop_val_body = quote! {
                 #get_prop_val_body
                 if num == #prop_index {
@@ -110,6 +111,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
     let mut get_n_params_body = quote! {};
     let mut call_as_proc_body = quote! {};
     let mut call_as_func_body = quote! {};
+    let mut get_param_def_value_body = quote! {};
 
     for func in &functions {
         let name_literal = str_literal_token(&func.name, struct_ident)?;
@@ -156,6 +158,31 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 };
             };
         }
+
+        let mut this_get_param_def_value_body = quote! {};
+        for (i, p) in func.params.iter().enumerate() {
+            match &p.1 {
+                Some(expr) => {
+                    let value_setter =
+                        param_ty_to_ffi_return(&p.0, quote! { value }, expr.into_token_stream())?;
+                    this_get_param_def_value_body = quote! {
+                        #this_get_param_def_value_body
+                        if param_num == #i  {
+                            #value_setter;
+                            return true;
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        get_param_def_value_body = quote! {
+            #get_param_def_value_body
+            if method_num == #func_index {
+                #this_get_param_def_value_body
+                return false;
+            };
+        };
     }
 
     let result = quote! {
@@ -220,6 +247,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 param_num: usize,
                 value: native_api_1c::native_api_1c_core::ffi::types::ReturnValue,
             ) -> bool {
+                #get_param_def_value_body
                 false
             }
             fn has_ret_val(&self, method_num: usize) -> bool {

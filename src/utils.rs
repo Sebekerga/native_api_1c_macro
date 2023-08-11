@@ -43,10 +43,10 @@ pub fn convert_ty_to_param_type(ty: &Type, span: Span) -> Result<ParamType, Toke
             };
 
             match ident.to_string().as_str() {
-                "bool" => Ok(ParamType::Bool(None)),
-                "i32" => Ok(ParamType::I32(None)),
-                "f64" => Ok(ParamType::F64(None)),
-                "String" => Ok(ParamType::String(None)),
+                "bool" => Ok(ParamType::Bool),
+                "i32" => Ok(ParamType::I32),
+                "f64" => Ok(ParamType::F64),
+                "String" => Ok(ParamType::String),
                 _ => return tkn_err!("AddIn props type must be bool, i32, f64 or String", span),
             }
         }
@@ -56,14 +56,15 @@ pub fn convert_ty_to_param_type(ty: &Type, span: Span) -> Result<ParamType, Toke
 
 pub fn param_ty_to_ffi_return(
     param_type: &ParamType,
-    param_path: proc_macro2::TokenStream,
+    target: proc_macro2::TokenStream,
+    source: proc_macro2::TokenStream,
 ) -> Result<proc_macro2::TokenStream, TokenStream> {
     match param_type {
-        ParamType::Bool(_) => Ok(quote! { val.set_bool(self.#param_path.into()) }),
-        ParamType::I32(_) => Ok(quote! { val.set_i32(self.#param_path.into()) }),
-        ParamType::F64(_) => Ok(quote! { val.set_f64(self.#param_path.into()) }),
-        ParamType::String(_) => Ok(
-            quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&self.#param_path).as_str())) },
+        ParamType::Bool => Ok(quote! { #target.set_bool(#source.into()) }),
+        ParamType::I32 => Ok(quote! { #target.set_i32(#source.into()) }),
+        ParamType::F64 => Ok(quote! { #target.set_f64(#source.into()) }),
+        ParamType::String => Ok(
+            quote! { #target.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(#source.clone()).as_str())) },
         ),
     }
 }
@@ -73,16 +74,16 @@ pub fn param_ty_to_ffi_set(
     param_path: proc_macro2::TokenStream,
 ) -> Result<proc_macro2::TokenStream, TokenStream> {
     match param_type {
-        ParamType::Bool(_) => Ok(
+        ParamType::Bool => Ok(
             quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(inner_value) => self.#param_path = inner_value.clone(), },
         ),
-        ParamType::I32(_) => Ok(
+        ParamType::I32 => Ok(
             quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(inner_value) => self.#param_path = inner_value.clone(), },
         ),
-        ParamType::F64(_) => Ok(
+        ParamType::F64 => Ok(
             quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(inner_value) => self.#param_path = inner_value.clone(), },
         ),
-        ParamType::String(_) => Ok(quote! {
+        ParamType::String => Ok(quote! {
             native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(inner_value) => self.#param_path
                 = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value).into(),
         }),

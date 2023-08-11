@@ -11,4 +11,9 @@ fn tests() {
     t.pass("tests/to_build/functions/result/int_type.rs");
     t.pass("tests/to_build/functions/result/float_type.rs");
     t.pass("tests/to_build/functions/result/str_type.rs");
+
+    t.pass("tests/to_build/functions/defaults/bool_type.rs");
+    t.pass("tests/to_build/functions/defaults/int_type.rs");
+    t.pass("tests/to_build/functions/defaults/float_type.rs");
+    t.pass("tests/to_build/functions/defaults/str_type.rs");
 }
