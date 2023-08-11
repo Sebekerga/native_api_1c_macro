@@ -1,21 +1,26 @@
+use functions::parse_funcs;
 use proc_macro::{LexError, TokenStream};
 use proc_macro2::Span;
+use props::parse_props;
 use quote::{quote, spanned::Spanned, ToTokens};
-use syn::{parse_macro_input, punctuated::Punctuated, DeriveInput, Ident, MetaNameValue, Token, Expr, BareFnArg};
+use syn::{
+    parse_macro_input, punctuated::Punctuated, BareFnArg, DeriveInput, Expr, GenericArgument,
+    Ident, Token, Type,
+};
+use types::{FuncDesc, ParamType, PropDesc};
+use utils::{
+    func_call_tkn, macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token,
+};
 
-macro_rules! tkn_err_inner {
-    ($str:expr, $span:expr) => {
-        syn::Error::new($span, $str).to_compile_error().into()
-    };
-}
+mod functions;
+mod props;
+mod types;
+mod utils;
 
-macro_rules! tkn_err {
-    ($str:expr, $span:expr) => {
-        Err(tkn_err_inner!($str, $span))
-    };
-}
-
-#[proc_macro_derive(AddIn, attributes(add_in_prop, add_in_func, add_in_con))]
+#[proc_macro_derive(
+    AddIn,
+    attributes(add_in_prop, add_in_func, add_in_con, param, returns)
+)]
 pub fn derive(input: TokenStream) -> TokenStream {
     let derive_input = parse_macro_input!(input as DeriveInput);
     match derive_result(&derive_input) {
@@ -35,33 +40,6 @@ fn derive_result(input: &DeriveInput) -> Result<TokenStream, TokenStream> {
     .into())
 }
 
-struct PropDesc {
-    ident: Ident,
-    name: String,
-    name_ru: String,
-    readable: bool,
-    writable: bool,
-    ty: ParamType,
-}
-
-#[derive(Clone)]
-enum ParamType {
-    SelfType,
-    SelfTypeMut,
-    Bool,
-    I32,
-    F64,
-    String,
-}
-
-struct FuncDesc {
-    ident: Ident,
-    name: String,
-    name_ru: String,
-    params: Vec<ParamType>,
-    return_value: Option<ParamType>,
-}
-
 fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, TokenStream> {
     let struct_ident = &input.ident;
     let syn::Data::Struct(struct_data) = &input.data else {
@@ -69,161 +47,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
     };
     let add_in_name_literal = str_literal_token(&struct_ident.to_string(), struct_ident)?;
 
-    let mut props: Vec<PropDesc> = Vec::new();
-    let mut funcs: Vec<FuncDesc> = Vec::new();
-
-    // iterate over props
-    for prop in &struct_data.fields {
-        if prop.attrs.len() > 1 {
-            return tkn_err!("AddIn fields can have 1 attribute at most", prop.__span());
-        }
-        let Some(attr) = prop.attrs.get(0) else { 
-            continue; 
-        };
-        if !attr.path().is_ident("add_in_prop") {
-            continue;
-        };
-        let syn::Visibility::Public(_) = prop.vis else {
-            return tkn_err!("AddIn props must be public", prop.ident.__span());
-        };
-        let Some(prop_ident) = prop.ident.clone() else {
-            return tkn_err!("AddIn props must have a name", prop.__span());
-        };
-
-        let name_values: Punctuated<Expr, Token![,]> = attr
-            .parse_args_with(Punctuated::parse_terminated)
-            .map_err::<TokenStream, _>(|e| tkn_err_inner!(e.to_string(), attr.__span()))?;
-
-        let args = name_values
-            .iter()
-            .flat_map(|exp| {
-                let Expr::Assign(assign) = exp else { 
-                    return Some((exp.to_token_stream().to_string(), None, exp.__span())); 
-                };
-                let Expr::Lit(lit) = &*assign.right else { return None };
-                let syn::Lit::Str(str_lit) = &lit.lit else { return None };
-                Some((assign.left.to_token_stream().to_string(), Some(str_lit.value()), exp.__span()))
-            });
-        let Some(prop_name) = args
-            .clone()
-            .find(|(name, _, _)| name == "name") else {
-                return tkn_err!("AddIn prop must have a `name` argument", attr.__span());
-            };
-        let Some(prop_name) = prop_name.1 else {
-            return tkn_err!("AddIn prop argument `name` must be a string literal assignment: name = \"MyPropName\"", prop_name.2);
-        };
-
-        let Some(prop_name_ru) = args
-            .clone()
-            .find(|(name, _, _)| name == "name_ru") else {
-                return tkn_err!("AddIn prop must have a `name_ru` argument", attr.__span());
-            };
-        let Some(prop_name_ru) = prop_name_ru.1 else {
-            return tkn_err!("AddIn prop argument `name_ru` must be a string literal assignment: name_ru = \"МоеСвойство\"", prop_name_ru.2);
-        };
-
-        let readable = args
-            .clone()
-            .find(|(name, _, _)| name == "readable")
-            .is_some();
-
-        let writable = args
-            .clone()
-            .find(|(name, _, _)| name == "writable")
-            .is_some();
-
-        if !readable && !writable {
-            return tkn_err!("AddIn prop must be either readable, writable or both", attr.__span());
-        }
-
-        props.push(PropDesc {
-            ident: prop_ident,
-            name: prop_name,
-            name_ru: prop_name_ru,
-            readable,
-            writable,
-            ty: convert_ty_to_param_type(&prop.ty, prop.__span())?,
-        });
-    }
-    // iterate over methods
-    for prop in &struct_data.fields {
-        if prop.attrs.len() > 1 {
-            return tkn_err!("AddIn fields can have 1 attribute at most", prop.__span());
-        }
-        let Some(attr) = prop.attrs.get(0) else { 
-            continue; 
-        };
-        if !attr.path().is_ident("add_in_func") {
-            continue;
-        };
-        let syn::Visibility::Public(_) = prop.vis else {
-            return tkn_err!("AddIn functions must be public", prop.ident.__span());
-        };
-        let Some(prop_ident) = prop.ident.clone() else {
-            return tkn_err!("AddIn props must have a name", prop.__span());
-        };
-
-        let name_values: Punctuated<Expr, Token![,]> = attr
-            .parse_args_with(Punctuated::parse_terminated)
-            .map_err::<TokenStream, _>(|e| tkn_err_inner!(e.to_string(), attr.__span()))?;
-
-        let args = name_values
-            .iter()
-            .flat_map(|exp| {
-                let Expr::Assign(assign) = exp else { 
-                    return Some((exp.to_token_stream().to_string(), None, exp.__span())); 
-                };
-                let Expr::Lit(lit) = &*assign.right else { return None };
-                let syn::Lit::Str(str_lit) = &lit.lit else { return None };
-                Some((assign.left.to_token_stream().to_string(), Some(str_lit.value()), exp.__span()))
-            });
-        let Some(prop_name) = args
-            .clone()
-            .find(|(name, _, _)| name == "name") else {
-                return tkn_err!("AddIn prop must have a `name` argument", attr.__span());
-            };
-        let Some(prop_name) = prop_name.1 else {
-            return tkn_err!("AddIn prop argument `name` must be a string literal assignment: name = \"MyPropName\"", prop_name.2);
-        };
-
-        let Some(prop_name_ru) = args
-            .clone()
-            .find(|(name, _, _)| name == "name_ru") else {
-                return tkn_err!("AddIn prop must have a `name_ru` argument", attr.__span());
-            };
-        let Some(prop_name_ru) = prop_name_ru.1 else {
-            return tkn_err!("AddIn prop argument `name_ru` must be a string literal assignment: name_ru = \"МоеСвойство\"", prop_name_ru.2);
-        };
-
-        let mut func_desc = FuncDesc {
-            ident: prop_ident,
-            name: prop_name,
-            name_ru: prop_name_ru,
-            params: Vec::new(),
-            return_value: None,
-        };
-        
-        let syn::Type::BareFn(fn_desc) = &prop.ty else {
-            return tkn_err!("AddIn functions type must be a function type", prop.ident.__span());
-        }; 
-        if fn_desc.lifetimes.is_some() {
-            return tkn_err!("AddIn functions must not have lifetimes", prop.ident.__span());
-        }
-        if fn_desc.unsafety.is_some() {
-            return tkn_err!("AddIn functions must be safe", prop.ident.__span());
-        }
-        if fn_desc.abi.is_some() {
-            return tkn_err!("AddIn functions must not have abi", prop.ident.__span());
-        }
-        for (i, input) in fn_desc.inputs.iter().enumerate() {
-            let param_type = parse_func_param(i, input)?;
-            func_desc.params.push(param_type);
-        }
-        func_desc.return_value = parse_func_return(&fn_desc.output)?;
-        funcs.push(func_desc);
-    }
-
-
+    let mut props = parse_props(struct_data)?;
+    let mut funcs = parse_funcs(struct_data)?;
 
     let number_of_props = props.len();
     let number_of_func = funcs.len();
@@ -260,17 +85,17 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         is_prop_writable_body = quote! {
             #is_prop_writable_body
             if num == #prop_index { return #writable };
-        };     
+        };
 
-        if readable { 
+        if readable {
             let ffi_set_tkn = param_ty_to_ffi_return(&prop.ty, quote! { #prop_ident})?;
             get_prop_val_body = quote! {
                 #get_prop_val_body
-                if num == #prop_index { 
+                if num == #prop_index {
                     #ffi_set_tkn;
-                    return true; 
+                    return true;
                 };
-            };  
+            };
         };
 
         if writable {
@@ -281,12 +106,12 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                     match val {
                         #prop_set_tkn
                         _ => return false,
-                    } 
-                    return true; 
+                    }
+                    return true;
                 };
             };
         }
-    };
+    }
 
     let mut find_func_body = quote! {};
     let mut get_func_name_body = quote! {};
@@ -300,7 +125,14 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         let name_ru_literal = str_literal_token(&func.name_ru, struct_ident)?;
         let has_ret_val = func.return_value.is_some();
         let func_index = funcs.iter().position(|p| p.name == func.name).unwrap();
-        let number_of_params = func.params.iter().filter(|p| match p { ParamType::SelfType | ParamType::SelfTypeMut => false, _ => true }).count();
+        let number_of_params = func
+            .params
+            .iter()
+            .filter(|p| match p {
+                ParamType::SelfType | ParamType::SelfTypeMut => false,
+                _ => true,
+            })
+            .count();
 
         find_func_body = quote! {
             #find_func_body
@@ -375,7 +207,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             }
             fn set_prop_val(&mut self, num: usize, val: &native_api_1c::native_api_1c_core::ffi::types::ParamValue) -> bool {
                 #set_prop_val_body
-                false     
+                false
             }
             fn is_prop_readable(&self, num: usize) -> bool {
                 #is_prop_readable_body
@@ -440,16 +272,17 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
 fn build_extern_functions(input: &DeriveInput) -> Result<proc_macro2::TokenStream, TokenStream> {
     let struct_ident = &input.ident;
-    let get_class_object_body = quote! { 
+    let get_class_object_body = quote! {
         match *name as u8 {
             b'1' => {
                 let add_in_1 = #struct_ident::new();
                 native_api_1c::native_api_1c_core::ffi::create_component(component, add_in_1)
             },
-            _ => 0, 
-        }   
+            _ => 0,
+        }
     };
-    let get_class_names_body = quote! { native_api_1c::native_api_1c_core::ffi::utils::os_string_nil("1").as_ptr() };
+    let get_class_names_body =
+        quote! { native_api_1c::native_api_1c_core::ffi::utils::os_string_nil("1").as_ptr() };
 
     let result = quote! {
         pub static mut PLATFORM_CAPABILITIES: std::sync::atomic::AtomicI32 =
@@ -484,171 +317,4 @@ fn build_extern_functions(input: &DeriveInput) -> Result<proc_macro2::TokenStrea
     };
 
     Ok(result)
-}
-
-fn str_literal_token(
-    str_literal: &str,
-    err_ident: &Ident,
-) -> Result<proc_macro2::TokenStream, TokenStream> {
-    let token: Result<TokenStream, TokenStream> = format!(r#""{}""#,str_literal).parse().map_err(|e: LexError| {
-        let token2: TokenStream = Err(syn::Error::new(
-            err_ident.span(),
-            format!("LexErr: {}", e.to_string()),
-        )
-        .to_compile_error())
-        .unwrap();
-        token2
-    });
-    token.map(|t| t.into())
-}
-
-fn parse_func_param(index: usize, input: &BareFnArg) -> Result<ParamType, TokenStream> {
-    let syn::BareFnArg {
-        attrs,
-        name,
-        ty,
-    } = input;
-    if attrs.len() != 0 {
-        return tkn_err!("AddIn functions arguments must not have attributes", input.__span());
-    }
-    let ty = convert_ty_to_param_type(ty, input.__span())?;
-    Ok(ty)
-}
-
-fn parse_func_return(input: &syn::ReturnType) -> Result<Option<ParamType>, TokenStream> {
-    Ok(match input {
-        syn::ReturnType::Default => None,
-        syn::ReturnType::Type(_, ty) => Some(convert_ty_to_param_type(ty, input.__span())?),
-    })
-}
-
-fn convert_ty_to_param_type(ty: &syn::Type, span: Span) -> Result<ParamType, TokenStream> {
-    match ty {
-        syn::Type::Reference(ref_type) => {
-            let ty = &*ref_type.elem;
-            if ty.to_token_stream().to_string() != "Self" {
-                return tkn_err!("AddIn functions arguments must be Self", span);
-            }
-            if ref_type.mutability.is_some() {
-                Ok(ParamType::SelfTypeMut)
-            } else {
-                Ok(ParamType::SelfType)
-            }
-        }
-        syn::Type::Path(path_type) => {
-            let syn::Path { leading_colon, segments } = &path_type.path;
-            if leading_colon.is_some() {
-                return tkn_err!("AddIn functions arguments must not have leading colons", span);
-            }
-            if segments.len() != 1 {
-                return tkn_err!("AddIn functions arguments must have exactly one segment", span);
-            }
-            let syn::PathSegment { ident, arguments } = segments.iter().next().unwrap();
-            let syn::PathArguments::None = arguments else {
-                return tkn_err!("AddIn functions arguments must not have arguments", span);
-            };
-            match ident.to_string().as_str() {
-                "bool" => Ok(ParamType::Bool),
-                "i32" => Ok(ParamType::I32),
-                "f64" => Ok(ParamType::F64),
-                "String" => Ok(ParamType::String),
-                _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64 or String", span),
-            }
-        }
-        _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64, or String", span),
-    }
-}
-
-fn param_ty_to_ffi_return(param_type: &ParamType, param_path: proc_macro2::TokenStream) -> Result<proc_macro2::TokenStream, TokenStream> {
-    match param_type {
-        ParamType::Bool => Ok(quote! { val.set_bool(self.#param_path) }),
-        ParamType::I32 => Ok(quote! { val.set_i32(self.#param_path) }),
-        ParamType::F64 => Ok(quote! { val.set_f64(self.#param_path) }),
-        ParamType::String => Ok(quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&self.#param_path)) }),
-        _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64, or String", param_path.__span()),
-    }
-}
-
-fn param_ty_to_ffi_set(param_type: &ParamType, param_path: proc_macro2::TokenStream) -> Result<proc_macro2::TokenStream, TokenStream> {
-    match param_type {
-        ParamType::Bool => Ok(quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(inner_value) => self.#param_path = inner_value.clone(), }),
-        ParamType::I32 => Ok(quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(inner_value) => self.#param_path = inner_value.clone(), }),
-        ParamType::F64 => Ok(quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(inner_value) => self.#param_path = inner_value.clone(), }),
-        ParamType::String => Ok(quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::String(inner_value) => self.#param_path = inner_value.clone(), }),
-        _ => return tkn_err!("AddIn functions arguments must be bool, i32, f64, or String", param_path.__span()),
-    }
-}
-
-fn func_call_tkn(func: &FuncDesc, return_value: bool) -> Result<proc_macro2::TokenStream, TokenStream> {
-    let func_ident = &func.ident;
-    let mut param_checkers = quote! {};
-    let mut func_call = quote! {};
-    let mut counter = 0;
-    for param in &func.params {
-        if matches!(param, ParamType::SelfType | ParamType::SelfTypeMut) {
-            continue;
-        }
-
-        let param_ident = Ident::new(&format!("param_{}", counter+1), Span::call_site());
-        param_checkers = quote! {
-            #param_checkers
-            let Some(param_data) = params.get(#counter as usize) else { return false; };
-        };
-        match param {
-            ParamType::Bool => {
-                param_checkers = quote! {
-                    #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(#param_ident) = param_data
-                };
-            }
-            ParamType::I32 => {
-                param_checkers = quote! {
-                    #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(#param_ident) = param_data
-                };
-            }
-            ParamType::F64 => {
-                param_checkers = quote! {
-                    #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(#param_ident) = param_data
-                };
-            }
-            ParamType::String => {
-                param_checkers = quote! {
-                    #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::String(#param_ident) = param_data
-                };
-            }
-            _ => return tkn_err!("AddIn functions arguments cannot be `Self`", param_ident.__span()),
-        }
-        param_checkers = quote! {
-            #param_checkers
-            else { return false; };
-        };
-        func_call = quote! {
-            #func_call
-            #param_ident.clone(),
-        };
-        counter += 1;
-    };
-
-    if return_value {
-        let value_setter = match &func.return_value.clone().unwrap() {
-            ParamType::Bool => quote! { val.set_bool(result); },
-            ParamType::I32 => quote! { val.set_i32(result); },
-            ParamType::F64 => quote! { val.set_f64(result); },
-            ParamType::String => quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&result)); },
-            _ => return tkn_err!("AddIn functions must return (), bool, i32, f64, or String", func_ident.__span()),
-        };
-        Ok(quote! {
-            #param_checkers
-            let result = self.#func_ident(#func_call);
-            #value_setter
-        })
-    } else {
-        Ok(quote! {
-            #param_checkers
-            self.#func_ident(#func_call);
-        })
-    }
 }
