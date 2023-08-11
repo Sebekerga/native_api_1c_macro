@@ -63,7 +63,7 @@ pub fn param_ty_to_ffi_return(
         ParamType::I32(_) => Ok(quote! { val.set_i32(self.#param_path.into()) }),
         ParamType::F64(_) => Ok(quote! { val.set_f64(self.#param_path.into()) }),
         ParamType::String(_) => Ok(
-            quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&self.#param_path.into())) },
+            quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&self.#param_path).as_str())) },
         ),
     }
 }
@@ -84,7 +84,7 @@ pub fn param_ty_to_ffi_set(
         ),
         ParamType::String(_) => Ok(quote! {
             native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(inner_value) => self.#param_path
-                = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value),
+                = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value).into(),
         }),
     }
 }

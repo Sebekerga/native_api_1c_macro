@@ -252,7 +252,7 @@ pub fn func_call_tkn(
             ParamType::I32(_) => quote! { val.set_i32(call_result.into()); },
             ParamType::F64(_) => quote! { val.set_f64(call_result.into()); },
             ParamType::String(_) => {
-                quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(&call_result.into())); }
+                quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&call_result).as_str())); }
             }
         };
         func_call = quote! {
