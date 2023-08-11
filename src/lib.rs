@@ -166,8 +166,6 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         }
     }
 
-    // panic!("call_as_func_body: {}", call_as_func_body.to_string());
-
     let result = quote! {
         impl native_api_1c::native_api_1c_core::interface::AddInWrapper for #struct_ident {
             fn init(&mut self, interface: &'static native_api_1c::native_api_1c_core::ffi::connection::Connection) -> bool {

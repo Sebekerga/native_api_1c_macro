@@ -39,7 +39,7 @@ pub fn parse_functions(struct_data: &DataStruct) -> Result<Vec<FuncDesc>, TokenS
             func_desc.params.push(parse_arg_attr(attr)?);
         }
 
-        // parsing `arg` attribute     
+        // parsing `returns` attribute     
         let returns_iter = field.attrs.iter().filter(|attr| attr.path().is_ident(RETURNS_ATTR));
         if returns_iter.clone().count() > 1 {
             return tkn_err!("AddIn functions can have only 1 `returns` attribute", field.ident.__span());
@@ -55,8 +55,7 @@ pub fn parse_functions(struct_data: &DataStruct) -> Result<Vec<FuncDesc>, TokenS
         };
         if matches!(field_ty.output, ReturnType::Default) && (func_desc.return_value.0.is_some() || func_desc.return_value.1) {
             return tkn_err!("AddIn functions must have a return type if `returns` attribute is specified", field.ident.__span());
-        };
-        
+        };       
 
         functions_descriptions.push(func_desc);
     }
@@ -161,19 +160,15 @@ fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), Tok
         _ => unreachable!(),
     };
 
-    let result = exprs.iter().find_map(|expr| {
-        let Expr::Assign(assign) = expr else { 
-            return None; 
+    let result = exprs.iter().any(|expr| {
+        if let Expr::Assign(_assign) = expr { 
+            return false; 
         };
-        let left = assign.left.to_token_stream().to_string();
-        if &left != RESULT_ATTR {
-            return None;
-        };        
-        
-        Some(expr)
+        let expr = expr.to_token_stream().to_string();
+        expr.as_str() == RESULT_ATTR
     });
 
-    Ok((arg_ty, result.is_some()))        
+    Ok((arg_ty, result))        
 }
 
 
