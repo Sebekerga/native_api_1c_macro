@@ -15,6 +15,8 @@ pub enum ParamType {
     I32,
     F64,
     String,
+    Date,
+    Blob,
 }
 
 pub struct FuncDesc {

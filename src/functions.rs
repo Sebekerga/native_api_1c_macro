@@ -5,7 +5,7 @@ use syn::{
     punctuated::Punctuated, Expr, Token, DataStruct, Attribute, Type, ReturnType, Ident,
 };
 
-use crate::{types::{FuncDesc, ParamType}, utils::macros::{tkn_err, tkn_err_inner}, constants::{ALL_TYPES, BOOL_TYPE, I32_TYPE, F64_TYPE, UNTYPED_TYPE, STRING_TYPE, ALL_TYPES_STRICT, NAME_ATTR, NAME_RU_ATTR, ARG_ATTR, RETURNS_ATTR, DEFAULT_ATTR, RESULT_ATTR}};
+use crate::{types::{FuncDesc, ParamType}, utils::macros::{tkn_err, tkn_err_inner}, constants::{ALL_RETURN_TYPES, BOOL_TYPE, I32_TYPE, F64_TYPE, UNTYPED_TYPE, STRING_TYPE, ALL_ARG_TYPES, NAME_ATTR, NAME_RU_ATTR, ARG_ATTR, RETURNS_ATTR, DEFAULT_ATTR, RESULT_ATTR, BLOB_TYPE, DATE_TYPE}};
 
 pub fn parse_functions(struct_data: &DataStruct) -> Result<Vec<FuncDesc>, TokenStream> {
     
@@ -109,7 +109,7 @@ fn parse_arg_attr(attr: &Attribute) -> Result<(ParamType, Option<Expr>), TokenSt
             return false;  
         };
         let expr = expr.to_token_stream().to_string();
-        ALL_TYPES_STRICT.contains(&expr.as_str())
+        ALL_ARG_TYPES.contains(&expr.as_str())
     }).map(|expr| expr.to_token_stream().to_string());
     let Some(arg_ty_str) = arg_ty else {
         return tkn_err!("AddIn function attribute `arg` must have a type specified: `#[arg(TYPE, ...)]`, where type: Bool, Int, Float or Str", attr.bracket_token.span.__span());
@@ -126,12 +126,22 @@ fn parse_arg_attr(attr: &Attribute) -> Result<(ParamType, Option<Expr>), TokenSt
         
         Some((&*assign.right).to_owned())
     });
+
+    if arg_ty_str == BLOB_TYPE && default.is_some() {
+        return tkn_err!("AddIn function attribute `arg` of type `Blob` cannot have default value", attr.bracket_token.span.__span());
+    };
+
+    if arg_ty_str == DATE_TYPE && default.is_some() {
+        return tkn_err!("AddIn function attribute `arg` of type `Date` cannot have default value", attr.bracket_token.span.__span());
+    };
     
     Ok((match arg_ty_str.as_str() {
         BOOL_TYPE => ParamType::Bool,
         I32_TYPE => ParamType::I32,
         F64_TYPE => ParamType::F64,
         STRING_TYPE => ParamType::String,
+        DATE_TYPE => ParamType::Date,
+        BLOB_TYPE => ParamType::Blob,
         _ => unreachable!(),
     }, default))
 }
@@ -146,7 +156,7 @@ fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), Tok
             return false;  
         };
         let expr = expr.to_token_stream().to_string();
-        ALL_TYPES.contains(&expr.as_str())
+        ALL_RETURN_TYPES.contains(&expr.as_str())
     });
     let Some(arg_ty_str) = arg_ty else {
         return tkn_err!("AddIn function attribute `returns` must have a type specified: use `#[returns(None, ...)]` if doesn't return anything", attr.bracket_token.span.__span());
@@ -156,6 +166,8 @@ fn parse_returns_attr(attr: &Attribute) -> Result<(Option<ParamType>, bool), Tok
         I32_TYPE => Some(ParamType::I32),
         F64_TYPE => Some(ParamType::F64),
         STRING_TYPE => Some(ParamType::String),
+        DATE_TYPE => Some(ParamType::Date),
+        BLOB_TYPE => Some(ParamType::Blob),
         UNTYPED_TYPE => None,
         _ => unreachable!(),
     };
@@ -224,6 +236,26 @@ pub fn func_call_tkn(
                     let #param_ident = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(#param_ident);
                 };
             }
+            ParamType::Date => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Date(#param_ident) 
+                    = param_data else { 
+                        return false; 
+                    };
+                    let #param_ident: chrono::DateTime<chrono::FixedOffset> = #param_ident.into();
+                };
+            }
+            ParamType::Blob => {
+                param_checkers = quote! {
+                    #param_checkers
+                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Blob(#param_ident) 
+                    = param_data else { 
+                        return false; 
+                    };
+                    let #param_ident = #param_ident.to_vec();
+                };
+            }
         }
         func_call = quote! {
             #func_call
@@ -251,6 +283,12 @@ pub fn func_call_tkn(
             ParamType::F64 => quote! { val.set_f64(call_result.into()); },
             ParamType::String => {
                 quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&call_result).as_str())); }
+            }
+            ParamType::Date => {
+                quote! { val.set_date(call_result.into()); }
+            }
+            ParamType::Blob => {
+                quote! { val.set_blob(&call_result); }
             }
         };
         func_call = quote! {

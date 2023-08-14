@@ -66,6 +66,8 @@ pub fn param_ty_to_ffi_return(
         ParamType::String => Ok(
             quote! { #target.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(#source.clone()).as_str())) },
         ),
+        ParamType::Date => Ok(quote! { #target.set_date(#source.into()) }),
+        ParamType::Blob => Ok(quote! { #target.set_blob(&#source) }),
     }
 }
 
@@ -87,6 +89,12 @@ pub fn param_ty_to_ffi_set(
             native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(inner_value) => self.#param_path
                 = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value).into(),
         }),
+        ParamType::Date => Ok(
+            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Date(inner_value) => self.#param_path = inner_value.clone(), },
+        ),
+        ParamType::Blob => Ok(
+            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Blob(inner_value) => self.#param_path = inner_value.clone(), },
+        ),
     }
 }
 
