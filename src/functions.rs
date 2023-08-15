@@ -220,10 +220,11 @@ pub fn func_call_tkn(
             ParamType::F64 => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(#param_ident) 
-                        = param_data else { 
-                            return false; 
-                        };
+                    let #param_ident = match param_data {
+                        native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(val) => *val,
+                        native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(val) => *val as f64,
+                        _ => return false,
+                    };
                 };
             }
             ParamType::String => {
