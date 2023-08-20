@@ -291,8 +291,7 @@ fn build_extern_functions(input: &DeriveInput) -> Result<proc_macro2::TokenStrea
             _ => 0,
         }
     };
-    let get_class_names_body =
-        quote! { native_api_1c::native_api_1c_core::ffi::utils::os_string_nil("1").as_ptr() };
+    let get_class_names_body = quote! { utf16_lit::utf16_null!("1").as_ptr() };
 
     let result = quote! {
         pub static mut PLATFORM_CAPABILITIES: std::sync::atomic::AtomicI32 =
