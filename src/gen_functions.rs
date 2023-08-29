@@ -5,7 +5,15 @@ use syn::{
     punctuated::Punctuated, Expr, Token, DataStruct, Attribute, Type, ReturnType, Ident,
 };
 
-use crate::{types::{FuncDesc, ParamType}, utils::macros::{tkn_err, tkn_err_inner}, constants::{ALL_RETURN_TYPES, BOOL_TYPE, I32_TYPE, F64_TYPE, UNTYPED_TYPE, STRING_TYPE, ALL_ARG_TYPES, NAME_ATTR, NAME_RU_ATTR, ARG_ATTR, RETURNS_ATTR, DEFAULT_ATTR, RESULT_ATTR, BLOB_TYPE, DATE_TYPE}};
+use crate::{types_1c::ParamType, utils::macros::{tkn_err, tkn_err_inner}, constants::{ALL_RETURN_TYPES, BOOL_TYPE, I32_TYPE, F64_TYPE, UNTYPED_TYPE, STRING_TYPE, ALL_ARG_TYPES, NAME_ATTR, NAME_RU_ATTR, ARG_ATTR, RETURNS_ATTR, DEFAULT_ATTR, RESULT_ATTR, BLOB_TYPE, DATE_TYPE}};
+
+pub struct FuncDesc {
+    pub ident: Ident,
+    pub name: String,
+    pub name_ru: String,
+    pub params: Vec<(ParamType, Option<Expr>)>,
+    pub return_value: (Option<ParamType>, bool),
+}
 
 pub fn parse_functions(struct_data: &DataStruct) -> Result<Vec<FuncDesc>, TokenStream> {
     
@@ -202,7 +210,7 @@ pub fn func_call_tkn(
             ParamType::Bool => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(#param_ident) 
+                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Bool(#param_ident) 
                     = param_data else { 
                         return false; 
                     };
@@ -211,7 +219,7 @@ pub fn func_call_tkn(
             ParamType::I32 => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(#param_ident) 
+                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(#param_ident) 
                     = param_data else { 
                         return false; 
                     };
@@ -221,8 +229,8 @@ pub fn func_call_tkn(
                 param_checkers = quote! {
                     #param_checkers
                     let #param_ident = match param_data {
-                        native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(val) => *val,
-                        native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(val) => *val as f64,
+                        native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::F64(val) => *val,
+                        native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(val) => *val as f64,
                         _ => return false,
                     };
                 };
@@ -230,17 +238,17 @@ pub fn func_call_tkn(
             ParamType::String => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(#param_ident) 
+                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Str(#param_ident) 
                     = param_data else { 
                         return false; 
                     };
-                    let #param_ident = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(#param_ident);
+                    let #param_ident = native_api_1c::native_api_1c_core::ffi::string_utils::from_os_string(#param_ident);
                 };
             }
             ParamType::Date => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Date(#param_ident) 
+                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Date(#param_ident) 
                     = param_data else { 
                         return false; 
                     };
@@ -250,7 +258,7 @@ pub fn func_call_tkn(
             ParamType::Blob => {
                 param_checkers = quote! {
                     #param_checkers
-                    let native_api_1c::native_api_1c_core::ffi::types::ParamValue::Blob(#param_ident) 
+                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(#param_ident) 
                     = param_data else { 
                         return false; 
                     };
@@ -283,7 +291,7 @@ pub fn func_call_tkn(
             ParamType::I32 => quote! { val.set_i32(call_result.into()); },
             ParamType::F64 => quote! { val.set_f64(call_result.into()); },
             ParamType::String => {
-                quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(&call_result).as_str())); }
+                quote! { val.set_str(&native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(String::from(&call_result).as_str())); }
             }
             ParamType::Date => {
                 quote! { val.set_date(call_result.into()); }

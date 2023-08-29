@@ -3,7 +3,7 @@ use proc_macro2::Span;
 use quote::quote;
 use syn::{Ident, Type};
 
-use crate::types::ParamType;
+use crate::types_1c::ParamType;
 
 use self::macros::tkn_err;
 
@@ -64,7 +64,7 @@ pub fn param_ty_to_ffi_return(
         ParamType::I32 => Ok(quote! { #target.set_i32(#source.into()) }),
         ParamType::F64 => Ok(quote! { #target.set_f64(#source.into()) }),
         ParamType::String => Ok(
-            quote! { #target.set_str(&native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(String::from(#source.clone()).as_str())) },
+            quote! { #target.set_str(&native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(String::from(#source.clone()).as_str())) },
         ),
         ParamType::Date => Ok(quote! { #target.set_date(#source.into()) }),
         ParamType::Blob => Ok(quote! { #target.set_blob(&#source) }),
@@ -77,23 +77,23 @@ pub fn param_ty_to_ffi_set(
 ) -> Result<proc_macro2::TokenStream, TokenStream> {
     match param_type {
         ParamType::Bool => Ok(
-            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Bool(inner_value) => self.#param_path = inner_value.clone(), },
+            quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Bool(inner_value) => self.#param_path = inner_value.clone(), },
         ),
         ParamType::I32 => Ok(
-            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::I32(inner_value) => self.#param_path = inner_value.clone(), },
+            quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(inner_value) => self.#param_path = inner_value.clone(), },
         ),
         ParamType::F64 => Ok(
-            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::F64(inner_value) => self.#param_path = inner_value.clone(), },
+            quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::F64(inner_value) => self.#param_path = inner_value.clone(), },
         ),
         ParamType::String => Ok(quote! {
-            native_api_1c::native_api_1c_core::ffi::types::ParamValue::Str(inner_value) => self.#param_path
-                = native_api_1c::native_api_1c_core::ffi::utils::from_os_string(inner_value).into(),
+            native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Str(inner_value) => self.#param_path
+                = native_api_1c::native_api_1c_core::ffi::string_utils::from_os_string(inner_value).into(),
         }),
         ParamType::Date => Ok(
-            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Date(inner_value) => self.#param_path = inner_value.clone(), },
+            quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Date(inner_value) => self.#param_path = inner_value.clone(), },
         ),
         ParamType::Blob => Ok(
-            quote! { native_api_1c::native_api_1c_core::ffi::types::ParamValue::Blob(inner_value) => self.#param_path = inner_value.clone(), },
+            quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(inner_value) => self.#param_path = inner_value.clone(), },
         ),
     }
 }

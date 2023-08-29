@@ -1,14 +1,14 @@
-use functions::{func_call_tkn, parse_functions};
+use gen_functions::{func_call_tkn, parse_functions};
+use gen_props::parse_props;
 use proc_macro::TokenStream;
-use props::parse_props;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, DeriveInput};
 use utils::{macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token};
 
 mod constants;
-mod functions;
-mod props;
-mod types;
+mod gen_functions;
+mod gen_props;
+mod types_1c;
 mod utils;
 
 #[proc_macro_derive(AddIn, attributes(add_in_prop, add_in_func, add_in_con, arg, returns))]
@@ -61,13 +61,13 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         find_prop_body = quote! {
             #find_prop_body
-            if native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
-            if native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
+            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
+            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
         };
         get_prop_name_body = quote! {
             #get_prop_name_body
-            if num == #prop_index && alias == 0 { return Some(native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_literal).into()) };
-            if num == #prop_index { return Some(native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal).into()) };
+            if num == #prop_index && alias == 0 { return Some(native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal).into()) };
+            if num == #prop_index { return Some(native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_ru_literal).into()) };
         };
         is_prop_readable_body = quote! {
             #is_prop_readable_body
@@ -122,13 +122,13 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         find_func_body = quote! {
             #find_func_body
-            if native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_literal) == name { return Some(#func_index) };
-            if native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal) == name { return Some(#func_index) };
+            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#func_index) };
+            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_ru_literal) == name { return Some(#func_index) };
         };
         get_func_name_body = quote! {
             #get_func_name_body
-            if num == #func_index && alias == 0 { return Some(native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_literal).into()) };
-            if num == #func_index { return Some(native_api_1c::native_api_1c_core::ffi::utils::os_string_nil(#name_ru_literal).into()) };
+            if num == #func_index && alias == 0 { return Some(native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal).into()) };
+            if num == #func_index { return Some(native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_ru_literal).into()) };
         };
         has_ret_val_body = quote! {
             #has_ret_val_body
@@ -210,11 +210,11 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 #get_prop_name_body
                 None
             }
-            fn get_prop_val(&self, num: usize, val: native_api_1c::native_api_1c_core::ffi::types::ReturnValue) -> bool {
+            fn get_prop_val(&self, num: usize, val: native_api_1c::native_api_1c_core::ffi::provided_types::ReturnValue) -> bool {
                 #get_prop_val_body
                 false
             }
-            fn set_prop_val(&mut self, num: usize, val: &native_api_1c::native_api_1c_core::ffi::types::ParamValue) -> bool {
+            fn set_prop_val(&mut self, num: usize, val: &native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue) -> bool {
                 #set_prop_val_body
                 false
             }
@@ -245,7 +245,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 &self,
                 method_num: usize,
                 param_num: usize,
-                value: native_api_1c::native_api_1c_core::ffi::types::ReturnValue,
+                value: native_api_1c::native_api_1c_core::ffi::provided_types::ReturnValue,
             ) -> bool {
                 #get_param_def_value_body
                 false
@@ -257,7 +257,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_proc(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::native_api_1c_core::ffi::types::ParamValue],
+                params: &[native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
             ) -> bool {
                 #call_as_proc_body
                 false
@@ -265,8 +265,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_func(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::native_api_1c_core::ffi::types::ParamValue],
-                val: native_api_1c::native_api_1c_core::ffi::types::ReturnValue,
+                params: &[native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
+                val: native_api_1c::native_api_1c_core::ffi::provided_types::ReturnValue,
             ) -> bool {
                 #call_as_func_body
                 false
