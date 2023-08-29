@@ -66,3 +66,7 @@ impl MyAddIn {
         self.protected_prop += 1;
     }
 }
+
+fn main() {
+    let _add_in = MyAddIn::new();
+}
