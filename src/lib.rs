@@ -62,7 +62,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         find_prop_body = quote! {
             #find_prop_body
             if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
-            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#prop_index) };
+            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_ru_literal) == name { return Some(#prop_index) };
         };
         get_prop_name_body = quote! {
             #get_prop_name_body
