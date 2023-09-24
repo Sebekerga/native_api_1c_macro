@@ -68,6 +68,7 @@ pub fn param_ty_to_ffi_return(
         ),
         ParamType::Date => Ok(quote! { #target.set_date(#source.into()) }),
         ParamType::Blob => Ok(quote! { #target.set_blob(&#source) }),
+        ParamType::SelfType => unreachable!("SelfType is never used in return params"),
     }
 }
 
@@ -95,6 +96,7 @@ pub fn param_ty_to_ffi_set(
         ParamType::Blob => Ok(
             quote! { native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(inner_value) => self.#param_path = inner_value.clone(), },
         ),
+        ParamType::SelfType => unreachable!("SelfType is never used in return params"),
     }
 }
 

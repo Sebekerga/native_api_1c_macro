@@ -6,4 +6,5 @@ pub enum ParamType {
     String,
     Date,
     Blob,
+    SelfType,
 }

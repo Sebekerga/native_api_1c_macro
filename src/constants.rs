@@ -6,6 +6,9 @@ pub const DATE_TYPE: &str = "Date";
 pub const BLOB_TYPE: &str = "Blob";
 pub const UNTYPED_TYPE: &str = "None";
 
+pub const IN_PARAMETER_FLAG: &str = "as_in";
+pub const OUT_PARAMETER_FLAG: &str = "as_out";
+
 pub const ALL_RETURN_TYPES: &[&str] = &[
     BOOL_TYPE,
     I32_TYPE,

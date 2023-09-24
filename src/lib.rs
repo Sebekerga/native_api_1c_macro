@@ -3,6 +3,7 @@ use gen_props::parse_props;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, DeriveInput};
+use types_1c::ParamType;
 use utils::{macros::tkn_err, param_ty_to_ffi_return, param_ty_to_ffi_set, str_literal_token};
 
 mod constants;
@@ -118,7 +119,11 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
         let name_ru_literal = str_literal_token(&func.name_ru, struct_ident)?;
         let has_ret_val = func.return_value.0.is_some();
         let func_index = functions.iter().position(|p| p.name == func.name).unwrap();
-        let number_of_params = func.params.iter().count();
+        let number_of_params = func
+            .params
+            .iter()
+            .filter(|p| !matches!(p.ty, ParamType::SelfType))
+            .count();
 
         find_func_body = quote! {
             #find_func_body
@@ -161,10 +166,10 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         let mut this_get_param_def_value_body = quote! {};
         for (i, p) in func.params.iter().enumerate() {
-            match &p.1 {
+            match &p.default {
                 Some(expr) => {
                     let value_setter =
-                        param_ty_to_ffi_return(&p.0, quote! { value }, expr.into_token_stream())?;
+                        param_ty_to_ffi_return(&p.ty, quote! { value }, expr.into_token_stream())?;
                     this_get_param_def_value_body = quote! {
                         #this_get_param_def_value_body
                         if param_num == #i  {
@@ -257,7 +262,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_proc(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
+                params: &mut [native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
             ) -> bool {
                 #call_as_proc_body
                 false
@@ -265,7 +270,7 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
             fn call_as_func(
                 &mut self,
                 method_num: usize,
-                params: &[native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
+                params: &mut [native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue],
                 val: native_api_1c::native_api_1c_core::ffi::provided_types::ReturnValue,
             ) -> bool {
                 #call_as_func_body
