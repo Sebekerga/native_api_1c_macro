@@ -9,6 +9,8 @@ fn tests() {
     t.pass("tests/to_build/functions/date_type.rs");
     t.pass("tests/to_build/functions/blob_type.rs");
 
+    t.pass("tests/to_build/functions/mut_type.rs");
+
     t.pass("tests/to_build/functions/result/bool_type.rs");
     t.pass("tests/to_build/functions/result/int_type.rs");
     t.pass("tests/to_build/functions/result/float_type.rs");

@@ -277,7 +277,7 @@ pub fn func_call_tkn(
             ParamType::SelfType => 
             func_call = quote! {
                 #func_call
-                #param_ident,
+                //#param_ident,
             },
             _ => if param.out_param {
                 func_call = quote! {
@@ -304,7 +304,7 @@ pub fn func_call_tkn(
     let mut func_call = if func.return_value.1 {
         quote! {
             #pre_call
-            let call_result = (self.#func_ident)(#func_call);
+            let call_result = self.#func_ident(#func_call);
             let Ok(call_result) = call_result else { return false; };
             #post_call
         }
@@ -312,7 +312,7 @@ pub fn func_call_tkn(
     else {
         quote! {
             #pre_call
-            let call_result = (self.#func_ident)(#func_call);
+            let call_result = self.#func_ident(#func_call);
             #post_call
         }
     };
@@ -501,12 +501,12 @@ fn gen_param_prep(param: &ArgumentDesc, param_ident: &Ident) -> (proc_macro2::To
             if param.out_param {
                 pre_call = quote! {
                     #pre_call
-                    let mut #param_ident = &mut self;
+                    //let mut #param_ident = &mut self;
                 };
             } else {
                 pre_call = quote! {
                     #pre_call
-                    let #param_ident = &self;
+                    //let #param_ident = &self;
                 };
             }
         },
