@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{spanned::Spanned, ToTokens, quote};
 use syn::{
-    punctuated::Punctuated, Expr, Token, DataStruct, Attribute, Type, ReturnType, Ident, Field,
+    punctuated::Punctuated, Expr, Token, DataStruct, Attribute, Type, ReturnType, Ident,
 };
 
 use crate::{types_1c::ParamType, utils::macros::{tkn_err, tkn_err_inner}, constants::{ALL_RETURN_TYPES, BOOL_TYPE, I32_TYPE, F64_TYPE, UNTYPED_TYPE, STRING_TYPE, ALL_ARG_TYPES, NAME_ATTR, NAME_RU_ATTR, ARG_ATTR, RETURNS_ATTR, DEFAULT_ATTR, RESULT_ATTR, BLOB_TYPE, DATE_TYPE, OUT_PARAMETER_FLAG, IN_PARAMETER_FLAG}};
@@ -277,12 +277,12 @@ pub fn func_call_tkn(
             ParamType::SelfType => 
             func_call = quote! {
                 #func_call
-                #param_ident,
+                self,
             },
             _ => if param.out_param {
                 func_call = quote! {
                     #func_call
-                    &mut #param_ident,
+                    #param_ident,
                 };
             }
             else {
@@ -351,66 +351,37 @@ fn gen_param_prep(param: &ArgumentDesc, param_ident: &Ident) -> (proc_macro2::To
 
     match param.ty {
         ParamType::Bool => {
-            if param.out_param {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Bool(#param_ident_ref) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                    let mut #param_ident = #param_ident_ref.clone();
+            pre_call = quote! {
+                #pre_call
+                let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Bool(#param_ident) 
+                = #param_ident_raw else { 
+                    return false; 
                 };
-                post_call = quote!{
-                    #post_call
-                    *#param_ident_ref = #param_ident;
-                };
-            } else {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Bool(#param_ident) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                };
-            }
+            };
         }
         ParamType::I32 => {
-            if param.out_param {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(#param_ident_ref) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                    let mut #param_ident = #param_ident_ref.clone();
+            pre_call = quote! {
+                #pre_call
+                let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(#param_ident) 
+                = #param_ident_raw else { 
+                    return false; 
                 };
-                post_call = quote!{
-                    #post_call
-                    *#param_ident_ref = #param_ident;
-                };
-            } else {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(#param_ident) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                };
-            }
+            };
         }
         ParamType::F64 => {
             if param.out_param {
                 pre_call = quote! {
                     #pre_call
-                    let mut #param_ident = match #param_ident_raw {
+                    let mut #param_ident_ref = match #param_ident_raw {
                         native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::F64(val) => *val,
                         native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::I32(val) => *val as f64,
                         _ => return false,
                     };
+                    let #param_ident = &mut #param_ident_ref;
                 };
                 post_call = quote!{
                     #post_call
-                    *#param_ident_raw = native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::F64(#param_ident);
+                    *#param_ident_raw = native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::F64(*#param_ident);
                 };
             } else {
                 pre_call = quote! {
@@ -425,13 +396,15 @@ fn gen_param_prep(param: &ArgumentDesc, param_ident: &Ident) -> (proc_macro2::To
         }
         ParamType::String => {
             if param.out_param {
+                let param_ident_str = Ident::new(&format!("{}_str", param_ident), Span::call_site());
                 pre_call = quote! {
                     #pre_call
                     let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Str(#param_ident_ref) 
                     = #param_ident_raw else { 
                         return false; 
                     };
-                    let mut #param_ident = native_api_1c::native_api_1c_core::ffi::string_utils::from_os_string(&#param_ident_ref);
+                    let mut #param_ident_str = native_api_1c::native_api_1c_core::ffi::string_utils::from_os_string(&#param_ident_ref);
+                    let #param_ident = &mut #param_ident_str;
                 };
                 post_call = quote!{
                     #post_call
@@ -474,41 +447,15 @@ fn gen_param_prep(param: &ArgumentDesc, param_ident: &Ident) -> (proc_macro2::To
             }
         }
         ParamType::Blob => {
-            if param.out_param {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(#param_ident_ref) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                    let mut #param_ident = #param_ident_ref;
+            pre_call = quote! {
+                #pre_call
+                let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(#param_ident) 
+                = #param_ident_raw else { 
+                    return false; 
                 };
-                post_call = quote!{
-                    #post_call
-                    *#param_ident_ref = #param_ident;
-                };
-            } else {
-                pre_call = quote! {
-                    #pre_call
-                    let native_api_1c::native_api_1c_core::ffi::provided_types::ParamValue::Blob(#param_ident) 
-                    = #param_ident_raw else { 
-                        return false; 
-                    };
-                };
-            }
+            };
         },
         ParamType::SelfType => {
-            if param.out_param {
-                pre_call = quote! {
-                    #pre_call
-                    let mut #param_ident = &mut self;
-                };
-            } else {
-                pre_call = quote! {
-                    #pre_call
-                    let #param_ident = &self;
-                };
-            }
         },
     } 
     (pre_call, post_call)
