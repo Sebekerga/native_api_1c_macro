@@ -16,6 +16,12 @@ fn tests() {
     t.pass("tests/to_build/functions/result/date_type.rs");
     t.pass("tests/to_build/functions/result/blob_type.rs");
 
+    t.pass("tests/to_build/functions/out_params/bool_type.rs");
+    t.pass("tests/to_build/functions/out_params/int_type.rs");
+    t.pass("tests/to_build/functions/out_params/float_type.rs");
+    t.pass("tests/to_build/functions/out_params/str_type.rs");
+    t.pass("tests/to_build/functions/out_params/blob_type.rs");
+
     t.pass("tests/to_build/functions/defaults/bool_type.rs");
     t.pass("tests/to_build/functions/defaults/int_type.rs");
     t.pass("tests/to_build/functions/defaults/float_type.rs");
