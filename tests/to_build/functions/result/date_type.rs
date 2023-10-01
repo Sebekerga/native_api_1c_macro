@@ -21,11 +21,11 @@ impl MyAddIn {
     pub fn new() -> Self {
         Self {
             connection: Arc::new(None),
-            my_function: Self::my_function,
+            my_function: Self::my_function_inner,
         }
     }
 
-    fn my_function(
+    fn my_function_inner(
         &self,
         arg: chrono::DateTime<chrono::FixedOffset>,
     ) -> Result<chrono::DateTime<chrono::FixedOffset>, ()> {

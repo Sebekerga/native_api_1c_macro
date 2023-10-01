@@ -18,11 +18,11 @@ impl MyAddIn {
     pub fn new() -> Self {
         Self {
             connection: Arc::new(None),
-            my_function: Self::my_function,
+            my_function: Self::my_function_inner,
         }
     }
 
-    fn my_function(&self, arg: Vec<u8>) -> Result<Vec<u8>, ()> {
+    fn my_function_inner(&self, arg: Vec<u8>) -> Result<Vec<u8>, ()> {
         Ok(arg)
     }
 }

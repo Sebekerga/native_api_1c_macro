@@ -48,13 +48,13 @@ impl MyAddIn {
             connection: Arc::new(None),
             some_prop: 0,
             protected_prop: 50,
-            my_function: Self::my_function,
-            my_procedure: Self::my_procedure,
+            my_function: Self::my_function_inner,
+            my_procedure: Self::my_procedure_inner,
             private_field: 100,
         }
     }
 
-    fn my_function(&self, arg: i32, arg_maybe_default: i64) -> Result<i32, ()> {
+    fn my_function_inner(&self, arg: i32, arg_maybe_default: i64) -> Result<i32, ()> {
         Ok(self.protected_prop
             + self.some_prop
             + arg
@@ -62,7 +62,7 @@ impl MyAddIn {
             + arg_maybe_default as i32)
     }
 
-    fn my_procedure(&mut self) {
+    fn my_procedure_inner(&mut self) {
         self.protected_prop += 1;
     }
 }
