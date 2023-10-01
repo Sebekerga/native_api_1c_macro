@@ -127,8 +127,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
 
         find_func_body = quote! {
             #find_func_body
-            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_literal) == name { return Some(#func_index) };
-            if native_api_1c::native_api_1c_core::ffi::string_utils::os_string_nil(#name_ru_literal) == name { return Some(#func_index) };
+            if name_str == #name_literal { return Some(#func_index) };
+            if name_str == #name_ru_literal { return Some(#func_index) };
         };
         get_func_name_body = quote! {
             #get_func_name_body
@@ -235,6 +235,8 @@ fn build_impl_block(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Tok
                 #number_of_func
             }
             fn find_method(&self, name: &[u16]) -> Option<usize> {
+                let name_string: String = native_api_1c::native_api_1c_core::ffi::string_utils::from_os_string(name);
+                let name_str: &str = name_string.as_str();
                 #find_func_body
                 None
             }
